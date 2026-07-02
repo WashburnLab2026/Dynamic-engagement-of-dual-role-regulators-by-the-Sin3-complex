@@ -16,5 +16,4 @@ Scripts are organized as follows:
 4-) Rename chains  
 5-) Renumbered residues chains  
 6-) RMSD clustering  
-7-) Data postprocessing  
-8-) Creating PDBdev  
+
