@@ -2,7 +2,7 @@
 
 This repository provides information about scripts and different dataset that were used to determine the 3D structure of a complete Sin3L complex.
 
-### Yeast Crosslinking Data Analysis 
+### Yeast crosslinking data analysis 
 
 Detailed procedure on how to analyze yeast crosslinking data can be found from the document named Crosslinking_DataAnalysis_JAC. It contains information about input/output data, different R and Rstudio packages that were used to perform the analysis.   
 
