@@ -4,11 +4,11 @@ This repository contains scripts that were used to conduct the integrative appro
 
 Scripts are organized as follows:  
 
-1-) XL analysis
-2-) Assign distance restraints from excel
-3-) Extract chains
-4-) Rename chains
-5-) Renumbered residues chains
-6-) RMSD clustering
-7-) Data postprocessing
-8-) Creating PDBdev
+1-) XL analysis  
+2-) Assign distance restraints from excel  
+3-) Extract chains  
+4-) Rename chains  
+5-) Renumbered residues chains  
+6-) RMSD clustering  
+7-) Data postprocessing  
+8-) Creating PDBdev  
