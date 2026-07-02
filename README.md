@@ -37,6 +37,7 @@ $python extract_chains.py input.pdb output.pdb A B  (if using the python version
 1-) RMSD clustering (RMSD_clustering)  
 This script clusters pdb structures based on the root mean square deviation (RMSD). It uses as a input a path to the
 directory that contains a list of PDBs of interest. It outputs a heatmap of different cluster, a barplot distribution, and a summary table.  
+
 2-) Assign chain ID to specific segments (Assign_chainID_2_specific_segment)
 This script Assigns different chain IDs to specified residue ranges of a given complex PDB file, then renumber those chains from 1.  
 
