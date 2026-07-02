@@ -4,7 +4,7 @@ This repository provides information about scripts and different dataset that we
 
 ### Yeast crosslinking data analysis 
 
-Detailed procedure on how to analyze yeast crosslinking data can be found from documents named Crosslinking_DataAnalysis_JAC. It contains information about input/output data, different R and Rstudio packages that were used to perform the analysis. Please download XLdata_JAC_workflow.Rproj and follow instructions on how to perform data analysis from Crosslinking_DataAnalysis_JAC.   
+Detailed procedure on how to analyze yeast crosslinking data can be found from documents named Crosslinking_DataAnalysis. It contains information about input/output data, different R and Rstudio packages that were used to perform the analysis. Please download XLdata_workflow.Rproj and follow instructions on how to perform data analysis from Crosslinking_DataAnalysis.   
 
 ### Integrative approach to determine the 3D structure of a complete Sin3L complex
 
