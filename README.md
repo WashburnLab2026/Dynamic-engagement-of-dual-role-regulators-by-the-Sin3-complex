@@ -1,6 +1,12 @@
 # Dynamic engagement of dual role regulators by the Sin3 complex
 
-This repository contains scripts that were used to conduct the integrative approach to determine the 3D structure of the complete Sin3L complex.
+This repository provides information about scripts and different dataset that were used to determine the 3D structure of a complete Sin3L complex.
+
+### Yeast Crosslinking Data Analysis 
+
+Detailed procedure on how to analyze yeast crosslinking data can be found from the document named Crosslinking_DataAnalysis_JAC. It contains information about input/output data, different R and Rstudio packages that were used to perform the analysis.   
+
+### Integrative approach to determine the 3D structure of a complete Sin3L complex
 
 Scripts are organized as follows:  
 
