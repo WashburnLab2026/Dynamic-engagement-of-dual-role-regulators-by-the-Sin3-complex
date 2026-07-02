@@ -25,8 +25,8 @@ This scripts are used to assign distance restraints from a given excel crosslink
 This script combines multiple models and chains from a given protein complex into one chain, then renumberes residues starting at 1.    
     
 Parameters:   
-    - input_pdb (str): Path to the input PDB file.    
-    - output_pdb (str): Path to the output PDB file with renumbered residues.    
+    - input_pdb: Path to the input PDB file.    
+    - output_pdb: Path to the output PDB file with renumbered residues.    
 
 3-) Extract chains (extract_chains)  
 This script extracts one or more specified chains from a given PDB file and writes the selected chains to a new PDB file.  
