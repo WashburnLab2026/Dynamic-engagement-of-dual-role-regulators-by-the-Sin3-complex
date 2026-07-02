@@ -1,0 +1,444 @@
+---
+title: "Yeast Crosslinking Data Analysis Joseph Cesare"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+
+To begin, one needs the following files in the directory:
+
+folder "/fasta" - contains directory of input .fasta file used in the Proteome Discoverer database search
+
+folder "/data" - contains directory of Proteome Discoverer Data exported from the tab "crosslinks" & "xiview"
+
+folder "/data/[method] where method corresponds to the LC-MS/MS acquisition strategy. 
+method = ms2 or ms2-ms3
+
+folder "/data/[method]/[bait] where bait corresponds to the tagged protein used in the affinity purification
+bait = sap30, rxt3, sin3a, sin3b
+
+
+
+
+
+
+
+
+Setup R Environment by installing packages
+```{r}
+# install.packages("dplyr")
+# install.packages("stringr")
+# install.packages("rio")
+# install.packages("tidyr")
+# install.packages("ggplot2")
+# install.packages("snakecase")
+# install.packages("tidyverse")
+# install.packages("seqinr")
+# install.packages("tinytex")
+# install.packages("VennDiagram")
+# install.packages("UpSetR")
+# install.packages("ComplexUpset")
+```
+
+
+Setup R Environment by loading packages
+```{r}
+library(dplyr)
+library(stringr)
+library(rio)
+library(tidyr)
+library(ggplot2)
+library(snakecase)
+library(tidyverse)
+library(seqinr)
+library(tinytex)
+library(VennDiagram)  # For Venn diagrams (for 2–3 experiments)
+library(UpSetR)       # For UpSet plots (for >3 experiments)
+library(ComplexUpset)
+```
+
+Begin with .fasta file processing. Here the key was extracting the GN = "" from the heading of the .fasta file. 
+
+```{r}
+#import data, show that fasta is amino acid sequence
+fasta_sequences <- read.fasta(file = "fasta/Saccharomyces cerevisiae S288C 9sp_canonical TaxID=559292) 20240130 reviewed.fasta", seqtype = "AA")
+
+#extract gene name using the GN= syntax in header
+get_gene_info <- function(header) {
+  gene_info <- sub(".*GN=([^ ]*).*", "\\1", header)
+  return(gene_info)
+}
+#make gene name into a list
+gene_info_list <- sapply(getAnnot(fasta_sequences), get_gene_info)
+print(gene_info_list)
+
+#extract uniprot id using the syntax in the header
+get_uniprot_info <- function(header) {
+  uniprot_info <- sub(".*\\|(.*?)\\|.*", "\\1", header)
+  return(uniprot_info)
+}
+
+#make uniprot id into a list
+uniprot_info_list <- sapply(getAnnot(fasta_sequences), get_uniprot_info)
+print(uniprot_info_list)
+
+#create dataframe from lists
+id_df <- data.frame(uniprot = uniprot_info_list, gene = gene_info_list)
+print(id_df)
+
+write.csv(id_df, file = "fasta/fasta_accession_yeast_20230130.csv", row.names = FALSE)
+
+```
+
+
+Now define specific gene lists relevant to this project. For us, this is Rpd3L, Rpd3S, histones, other hdac containing complexes, other chromatin remodeling complexes
+
+```{r}
+
+#from this database, make subset databases for lists of genes of interest------
+
+#rpd3large histone deacetylase complex
+text <- "ASH1:CTI6:DEP1:PHO23:RPD3:RXT2:RXT3:SAP30:SDS3:SIN3:UME1:UME6"
+list <- strsplit(text, ":")[[1]]
+rpd3l <- id_df %>% filter(gene %in% list)
+print(rpd3l)
+write.csv(rpd3l, file = "fasta/yeast_rpd3l_accession.csv", row.names = FALSE)
+
+#rpd3small histone deacetylase complex
+text <- "EAF3:RCO1:RPD3:SIN3:UME1"
+list <- strsplit(text, ":")[[1]]
+rpd3s <- id_df %>% filter(gene %in% list)
+print(rpd3s)
+write.csv(rpd3s, file = "fasta/yeast_rpd3s_accession.csv", row.names = FALSE)
+```
+
+With .fasta files processed, clear the dataframe for next step
+```{r}
+#clear previous data from dataframe
+rm(list = ls());gc()
+```
+
+
+Create a function to format crosslinking data, add gene names, and sort into lists based on fasta files
+
+```{r}
+# Define the function for: 
+# data wrangling, formatting, add gene name, export sorted lists
+process_xl_data <- function(data_path, fasta_path, fasta_list_path, output_data_gene, output_data_path, output_subset_path) {
+  # Data import ---------------------------------------------------------------
+  data <- import(data_path, setclass = "tibble")
+  fasta <- import(fasta_path, setclass = "tibble")
+  fasta_list <- import(fasta_list_path, setclass = "tibble")
+
+  colnames(data) <- snakecase::to_any_case(colnames(data), case="snake")
+    
+  # Formatting input files ------------------------------------------------------
+  data <- data %>% 
+    rename_all(tolower) %>% 
+    rename_all(~str_replace_all(., "\\W", "_")) %>%
+    rename_all(~str_replace_all(., "___", "_")) %>%
+    rename_all(~str_replace_all(., "__", "_")) %>%
+    select(-crosslink_sequence)
+  
+  # Reassign uniprot with gene -------------------------------------------------
+  data_gene <- data %>% rename(uniprot = accession_b)
+  
+  data_gene <- data_gene %>% 
+    left_join(fasta, by = "uniprot") %>%
+    mutate(accession_b = uniprot, 
+           gene_b = ifelse(!is.na(gene), gene, uniprot)) %>%
+    select(-uniprot) %>%
+    select(-gene)
+  
+  data_gene <- data_gene %>% rename(uniprot = accession_a)
+  
+  data_gene <- data_gene %>% 
+    left_join(fasta, by = "uniprot") %>%
+    mutate(accession_a = uniprot, 
+           gene_a = ifelse(!is.na(gene), gene, uniprot)) %>%
+    select(-uniprot) %>%
+    select(-gene)
+  
+  # Subset genes based on proteins of interest ---------------------------------
+  data_subset <- data_gene %>%
+    filter(gene_a %in% fasta_list$gene | gene_b %in% fasta_list$gene)
+  
+  data_subset_subset <- data_gene %>%
+    filter(gene_a %in% fasta_list$gene & gene_b %in% fasta_list$gene)
+  
+  # Write output files
+  write.csv(data_gene, file = output_data_gene, row.names = FALSE)
+  write.csv(data_subset, file = output_data_path, row.names = FALSE)
+  write.csv(data_subset_subset, file = output_subset_path, row.names = FALSE)
+  
+  # Return the processed data as a list for further use in R
+  return(list(data_gene = data_gene, data_subset = data_subset, data_subset_subset = data_subset_subset))
+}
+```
+
+Create function to make new directories for each specific experiment
+
+```{r}
+# Define function for:
+# Create directories
+create_directory <- function(folder_path) {
+  if (!dir.exists(folder_path)) {  # Check if the directory already exists
+    dir.create(folder_path, recursive = TRUE)  # Create the directory
+    message("Directory created: ", folder_path)
+  } else {
+    message("Directory already exists: ", folder_path)
+  }
+}
+```
+
+Define major directories
+
+```{r}
+#create results/ms2 directory
+if (!dir.exists("results/ms2")) {
+  dir.create("results/ms2", recursive = TRUE)
+}
+
+#create results/ms2-ms3 directory
+if (!dir.exists("results/ms2-ms3")) {
+  dir.create("results/ms2-ms3", recursive = TRUE)
+}
+```
+
+
+Use the functions 
+data_path         refers to the crosslink data from proteome discoverer
+
+fasta_path        refers to the fasta acession file from the database 
+
+fasta_list_path   refers to the subset fasta file for filtering
+
+output_data_gene  refers to output where gene name is added
+
+output_data_path  refers to output where there must be 1 crosslink to                                           
+
+output_subset_path    refers to output where only crosslinks within a subset 
+                      genes defined by fasta_list_path pass filter
+
+
+```{r}
+# pd3.2 crosslinks output -------------------------------------------------
+
+### ms2 ###
+
+# by4741 #
+
+#pd3.2 crosslinks output by4741ref
+
+if (!dir.exists("results/ms2/by4741ref")) {
+  dir.create("results/ms2/by4741ref", recursive = TRUE)
+}
+
+result <- process_xl_data (
+  data_path = "data/ms2/by4741/xl_data_by4741_ref.csv",
+  fasta_path = "fasta/fasta_accession_yeast_20230130.csv",
+  fasta_list_path = "fasta/yeast_rpd3l_accession.csv",
+  output_data_gene = "results/ms2/by4741ref/data_gene_by4741_ref.csv",
+  output_data_path = "results/ms2/by4741ref/data_rpd3l_by4741_ref.csv",
+  output_subset_path = "results/ms2/by4741ref/data_rpd3l-rpd3l_by4741_ref.csv"
+)
+
+# sap30 #
+
+#pd3.2 crosslinks output sap30ref
+
+if (!dir.exists("results/ms2/sap30ref")) {
+  dir.create("results/ms2/sap30ref", recursive = TRUE)
+}
+
+result <- process_xl_data (
+  data_path = "data/ms2/sap30/xl_data_sap30_ref.csv",
+  fasta_path = "fasta/fasta_accession_yeast_20230130.csv",
+  fasta_list_path = "fasta/yeast_rpd3l_accession.csv",
+  output_data_gene = "results/ms2/sap30ref/data_gene_sap30_ref.csv",
+  output_data_path = "results/ms2/sap30ref/data_rpd3l_sap30_ref.csv",
+  output_subset_path = "results/ms2/sap30ref/data_rpd3l-rpd3l_sap30_ref.csv"
+)
+
+### ms2-ms3 ###
+
+# by4741 #
+
+#pd3.2 crosslinks output by4741ref
+
+if (!dir.exists("results/ms2-ms3/by4741ref")) {
+  dir.create("results/ms2-ms3/by4741ref", recursive = TRUE)
+}
+
+result <- process_xl_data (
+  data_path = "data/ms2-ms3/by4741/xl_data_by4741_ref.csv",
+  fasta_path = "fasta/fasta_accession_yeast_20230130.csv",
+  fasta_list_path = "fasta/yeast_rpd3l_accession.csv",
+  output_data_gene = "results/ms2-ms3/by4741ref/data_gene_by4741_ref.csv",
+  output_data_path = "results/ms2-ms3/by4741ref/data_rpd3l_by4741_ref.csv",
+  output_subset_path = "results/ms2-ms3/by4741ref/data_rpd3l-rpd3l_by4741_ref.csv"
+)
+
+# sap30 #
+
+#pd3.2 crosslinks output sap30ref
+
+if (!dir.exists("results/ms2-ms3/sap30ref")) {
+  dir.create("results/ms2-ms3/sap30ref", recursive = TRUE)
+}
+
+result <- process_xl_data (
+  data_path = "data/ms2-ms3/sap30/xl_data_sap30_ref.csv",
+  fasta_path = "fasta/fasta_accession_yeast_20230130.csv",
+  fasta_list_path = "fasta/yeast_rpd3l_accession.csv",
+  output_data_gene = "results/ms2-ms3/sap30ref/data_gene_sap30_ref.csv",
+  output_data_path = "results/ms2-ms3/sap30ref/data_rpd3l_sap30_ref.csv",
+  output_subset_path = "results/ms2-ms3/sap30ref/data_rpd3l-rpd3l_sap30_ref.csv"
+)
+
+```
+
+Create a function to also process xiview data for visualizing the subset complexes. In these files, xiview does not take gene name specifically well, so I recommend going back to the file and deleting the columns containing "gene_a" and "gene_b" for the most accurate visualization on the xiview server. I have kept gene name though because 1) it is how I filter the gene subsets 2) it allows the data to be easily readable before visualizing  
+
+```{r}
+# Define the function
+process_xiview_data <- function(data_path, fasta_path, fasta_list_path, output_data_gene, output_data_path, output_subset_path) {
+  # Data import ---------------------------------------------------------------
+  data <- import(data_path, setclass = "tibble")
+  fasta <- import(fasta_path, setclass = "tibble")
+  fasta_list <- import(fasta_list_path, setclass = "tibble")
+  
+  
+  # Formatting input files ------------------------------------------------------
+  data <- data %>% 
+    rename_all(tolower) %>% 
+    rename_all(~str_replace_all(., "\\W", "_")) %>%
+    rename_all(~str_replace_all(., "___", "_")) %>%
+    rename_all(~str_replace_all(., "__", "_")) 
+  
+  # Reassign uniprot with gene -------------------------------------------------
+  data_gene <- data %>% rename(uniprot = protein2)
+  
+  data_gene <- data_gene %>% 
+    left_join(fasta, by = "uniprot") %>%
+    mutate(protein2 = uniprot, 
+           gene2 = ifelse(!is.na(gene), gene, uniprot)) %>%
+    select(-uniprot) %>%
+    select(-gene) 
+  
+  data_gene <- data_gene %>% rename(uniprot = protein1)
+  
+  data_gene <- data_gene %>% 
+    left_join(fasta, by = "uniprot") %>%
+    mutate(protein1 = uniprot, 
+           gene1 = ifelse(!is.na(gene), gene, uniprot)) %>%
+    select(-uniprot) %>%
+    select(-gene)
+  
+  
+  # Subset genes based on proteins of interest ---------------------------------
+  data_subset <- data_gene %>%
+    filter(gene1 %in% fasta_list$gene | gene2 %in% fasta_list$gene)
+  
+  data_subset_subset <- data_gene %>%
+    filter(gene1 %in% fasta_list$gene & gene2 %in% fasta_list$gene)
+  
+  # Write output files
+  write.csv(data_gene, file = output_data_gene, row.names = FALSE)
+  write.csv(data_subset, file = output_data_path, row.names = FALSE)
+  write.csv(data_subset_subset, file = output_subset_path, row.names = FALSE)
+  
+  # Return the processed data as a list for further use in R
+  return(list(data_gene = data_gene, data_subset = data_subset, data_subset_subset = data_subset_subset))
+}
+
+```
+
+Use the functions
+
+```{r}
+# pd3.2 xiview output -------------------------------------------------
+
+### ms2 ###
+
+# by4741 #
+
+#pd3.2 xiview output by4741ref
+
+if (!dir.exists("results/ms2/by4741ref")) {
+  dir.create("results/ms2/by4741ref", recursive = TRUE)
+}
+
+result <- process_xiview_data (
+  data_path = "data/ms2/by4741/xiview_by4741_ref.csv",
+  fasta_path = "fasta/fasta_accession_yeast_20230130.csv",
+  fasta_list_path = "fasta/yeast_rpd3l_accession.csv",
+  output_data_gene = "results/ms2/by4741ref/xiview_gene_by4741_ref.csv",
+  output_data_path = "results/ms2/by4741ref/xiview_rpd3l_by4741_ref.csv",
+  output_subset_path = "results/ms2/by4741ref/xiview_rpd3l-rpd3l_by4741_ref.csv"
+)
+
+# sap30 #
+
+
+#pd3.2 xiview output sap30ref
+
+if (!dir.exists("results/ms2/sap30ref")) {
+  dir.create("results/ms2/sap30ref", recursive = TRUE)
+}
+
+result <- process_xiview_data (
+  data_path = "data/ms2/sap30/xiview_sap30_ref.csv",
+  fasta_path = "fasta/fasta_accession_yeast_20230130.csv",
+  fasta_list_path = "fasta/yeast_rpd3l_accession.csv",
+  output_data_gene = "results/ms2/sap30ref/xiview_gene_sap30_ref.csv",
+  output_data_path = "results/ms2/sap30ref/xiview_rpd3l_sap30_ref.csv",
+  output_subset_path = "results/ms2/sap30ref/xiview_rpd3l-rpd3l_sap30_ref.csv"
+)
+
+### ms2-ms3 ###
+
+# by4741 #
+
+#pd3.2 xiview output by4741ref
+
+if (!dir.exists("results/ms2-ms3/by4741ref")) {
+  dir.create("results/ms2-ms3/by4741ref", recursive = TRUE)
+}
+
+result <- process_xiview_data (
+  data_path = "data/ms2-ms3/by4741/xiview_by4741_ref.csv",
+  fasta_path = "fasta/fasta_accession_yeast_20230130.csv",
+  fasta_list_path = "fasta/yeast_rpd3l_accession.csv",
+  output_data_gene = "results/ms2-ms3/by4741ref/xiview_gene_by4741_ref.csv",
+  output_data_path = "results/ms2-ms3/by4741ref/xiview_rpd3l_by4741_ref.csv",
+  output_subset_path = "results/ms2-ms3/by4741ref/xiview_rpd3l-rpd3l_by4741_ref.csv"
+)
+
+# sap30 #
+
+
+#pd3.2 xiview output sap30ref
+
+if (!dir.exists("results/ms2-ms3/sap30ref")) {
+  dir.create("results/ms2-ms3/sap30ref", recursive = TRUE)
+}
+
+result <- process_xiview_data (
+  data_path = "data/ms2-ms3/sap30/xiview_sap30_ref.csv",
+  fasta_path = "fasta/fasta_accession_yeast_20230130.csv",
+  fasta_list_path = "fasta/yeast_rpd3l_accession.csv",
+  output_data_gene = "results/ms2-ms3/sap30ref/xiview_gene_sap30_ref.csv",
+  output_data_path = "results/ms2-ms3/sap30ref/xiview_rpd3l_sap30_ref.csv",
+  output_subset_path = "results/ms2-ms3/sap30ref/xiview_rpd3l-rpd3l_sap30_ref.csv"
+)
+```
+
+With data files processed, clear the dataframe for next step
+```{r}
+#clear previous data from dataframe
+rm(list = ls());gc()
+```
