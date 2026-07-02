@@ -1,4 +1,4 @@
-# Dynamic engagement of dual role regulators by the Sin3 complex
+# Dynamic engagement of dual-role regulators by the Sin3 HDAC complex
 
 This repository provides information about scripts and different dataset that were used to determine the 3D structure of a complete Sin3L complex.
 
